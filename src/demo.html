@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>demo</title>
+
+    <!-- css start -->
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/animate.min.css">
+    <link rel="stylesheet" href="css/cropper.min.css">
+    <!-- css end -->
+
+    <style lang="">
+       .box{
+           position: relative;
+           width: 300px;
+           height: 300px;
+           border: 1px solid #000;
+           overflow: hidden;
+           margin: 20px;
+       }
+       .box img{width: 100%;}
+       .sbox{
+           position: absolute;
+           top: 0;left: 0;
+           width: 100%;
+           height: 100%;
+           border: 3px solid red;
+           box-sizing: border-box;
+       }
+       .crop{
+           position: relative;
+           width: 100%;
+           height: 100%;
+           z-index: 10;
+       }
+       #up{
+           margin-left: 20px;
+           max-width: 100%;
+       }
+    </style>
+</head>
+<body>
+    
+    <div class="box">
+        <div class="crop">
+            <img id="img" src="" alt="">
+        </div>
+        <div class="sbox"></div>
+    </div>
+    <input type="file" id="up">
+    <button id="btn">确定</button>
+    
+    <script src="js/jquery-3.2.1.min.js"></script>
+    <script src="js/common.js"></script>
+    <script src="js/cropper.min.js"></script>
+    <!-- <script src="js/index.js"></script> -->
+    <script>
+      $(function(){
+
+          $('#up').change(function(){
+              var reader = new FileReader()
+              reader.onload = function(){
+                  $('#img').prop('src',reader.result)
+                  $('#img').cropper({
+                    viewMode:3,          //视图模式
+                    aspectRatio: 1 / 1,   //裁剪框比例
+                    dragMode:'move',  //拖拽模式
+                    modal:false,   //黑色遮罩层
+                    background:false,  //格子背景
+                    autoCropArea:1,   //裁剪框初始化时的大小比例，1是铺满，默认0.8
+                    guides:false,     //裁剪框上面的虚线
+                    // autoCrop:false,    //初始化时是否显示裁剪框
+                    cropBoxMovable: false, //是否通过拖拽来移动剪裁框
+                    cropBoxResizable:false  //是否通过拖动来调整剪裁框的大小
+                  })
+              }
+              reader.readAsDataURL(this.files[0])
+          })
+
+          $('#btn').click(function(){
+            $("#img").cropper({
+                autoCrop: true, //关闭自动显示裁剪框
+            });
+              var canvas = $('#img').cropper('getCroppedCanvas');
+              var url =canvas.toDataURL('image/png')
+              log(url)
+              $('#img').prop('src',url)
+              $('#img').cropper('destroy')
+
+          })
+      })
+    </script>
+</body>
+</html>

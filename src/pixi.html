@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <script src="pixi/pixi.min.js"></script>
+    <script>
+        window.onload = function () {
+
+            new Game()
+        }
+
+
+        function Game() {
+            this.app = ''
+            this.TextureCache = PIXI.utils.TextureCache //纹理
+            this.Application = PIXI.Application //画布，实际对象
+            this.loader = PIXI.loader //加载器
+            this.resources = PIXI.loader.resources //在加载器里引入图像资源
+            this.Sprite = PIXI.Sprite //精灵
+            this.Container = PIXI.Container //容器
+
+            this.state = '' //游戏状态
+            this.gameScene = '' //游戏容器
+            this.gameoverScene = '' //游戏结束容器
+
+            //游戏元素
+            this.dungeon = '' //地牢
+            this.explorer = '' //探索者
+            this.treasure = '' //宝箱
+            this.id = '' //贴图纹理集别名
+            this.blobs; //怪物数组
+            this.healthBar; //血条
+            this.message; //文字
+
+            this.body = document.querySelector('body')
+
+            this.init()
+        }
+        Game.prototype = {
+            constructor: Game,
+            init: function () { //初始化
+                let me = this
+                this.sayHello()
+
+                this.app = new PIXI.Application({
+                    width: 512,
+                    height: 512,
+                    antialias: true,
+                    transparent: false,
+                    resolution: 1,
+                    backgroundColor: 0x061639
+                })
+
+                this.body.appendChild(this.app.view) //画布插入文档
+
+                this.loader //加载游戏
+                    .add('img/treasureHunter.json')
+                    .on('progress', this.progress)
+                    .load(function () {
+                        me.setup()
+                    })
+
+            },
+            setup: function () { //加载完成，引擎开始执行渲染
+                let me = this
+                this.gameScene = new this.Container() //游戏元素容器
+                this.app.stage.addChild(this.gameScene);
+
+                this.gameoverScene = new this.Container() //gameover 画面
+                this.app.stage.addChild(this.gameoverScene)
+                this.gameoverScene.visible = false
+
+                this.createSprite()
+                this.createBlob()
+                this.createHealthBar()
+                this.gameText()
+
+                //用键盘移动人物
+                let left = keyboard(37),
+                    up = keyboard(38),
+                    right = keyboard(39),
+                    down = keyboard(40);
+
+                //Left arrow key `press` method
+                left.press = function () {
+                    // console.log(me.explorer)
+                    //Change the explorer's velocity when the key is pressed
+                    me.explorer.vx = -5;
+                    me.explorer.vy = 0;
+                };
+
+                //Left arrow key `release` method
+                left.release = function () {
+
+                    //If the left arrow has been released, and the right arrow isn't down,
+                    //and the explorer isn't moving vertically:
+                    //Stop the explorer
+                    if (!right.isDown && me.explorer.vy === 0) {
+                        me.explorer.vx = 0;
+                    }
+                };
+
+                //Up
+                up.press = function () {
+                    me.explorer.vy = -5;
+                    me.explorer.vx = 0;
+                };
+                up.release = function () {
+                    if (!down.isDown && me.explorer.vx === 0) {
+                        me.explorer.vy = 0;
+                    }
+                };
+
+                //Right
+                right.press = function () {
+                    me.explorer.vx = 5;
+                    me.explorer.vy = 0;
+                };
+                right.release = function () {
+                    if (!left.isDown && me.explorer.vy === 0) {
+                        me.explorer.vx = 0;
+                    }
+                };
+
+                //Down
+                down.press = function () {
+                    me.explorer.vy = 5;
+                    me.explorer.vx = 0;
+                };
+                down.release = function () {
+                    if (!up.isDown && me.explorer.vx === 0) {
+                        me.explorer.vy = 0;
+                    }
+                };
+
+                this.state = this.play
+
+                this.app.ticker.add(delta => this.gameLoop(delta))
+            },
+            createSprite: function () { //创建精灵
+                this.id = this.resources['img/treasureHunter.json'].textures;
+
+                //地牢
+                this.dungeon = new this.Sprite(this.id['dungeon.png'])
+                this.gameScene.addChild(this.dungeon)
+
+                //探索者
+                this.explorer = new this.Sprite(this.id['explorer.png'])
+                this.explorer.position.set(68, this.gameScene.height / 2 - this.explorer.height / 2)
+                this.explorer.vx = 0;
+                this.explorer.vy = 0;
+                this.gameScene.addChild(this.explorer)
+
+                //宝箱
+                this.treasure = new this.Sprite(this.id['treasure.png'])
+                this.treasure.x = this.gameScene.width - this.treasure.width - 48;
+                this.treasure.y = this.gameScene.height / 2 - this.treasure.height / 2;
+                this.gameScene.addChild(this.treasure)
+
+                //门
+                this.door = new this.Sprite(this.id['door.png'])
+                this.door.x = 32
+                this.gameScene.addChild(this.door)
+
+            },
+            createBlob: function () { //创建泡泡怪
+                let blobNum = 6, //怪物数量
+                    spacing = 48, //间隔
+                    xOffset = 150,
+                    speed = 2, //速度
+                    direction = 1; //方向
+
+                this.blobs = [];
+
+                for (let i = 0; i < blobNum; i++) {
+                    let blob = new this.Sprite(this.id['blob.png'])
+                    let x = spacing * i + xOffset
+                    let y = randomInt(0, this.app.stage.height - blob.height)
+
+                    blob.x = x
+                    blob.y = y
+
+                    blob.vy = speed * direction
+
+                    direction *= -1 //反方向移动
+
+                    this.blobs.push(blob)
+
+                    this.gameScene.addChild(blob)
+                }
+
+            },
+            createHealthBar: function () { //制作血条
+                this.healthBar = new PIXI.DisplayObjectContainer();
+                this.healthBar.position.set(this.app.stage.width - 170, 4)
+                this.gameScene.addChild(this.healthBar)
+
+                //血条的外框
+                let innerBar = new PIXI.Graphics();
+                innerBar.beginFill(0x000000)
+                innerBar.drawRect(0, 0, 128, 8)
+                innerBar.endFill()
+                this.healthBar.addChild(innerBar)
+
+                //血槽
+                let outerBar = new PIXI.Graphics();
+                outerBar.beginFill(0xFF3300)
+                outerBar.drawRect(0, 0, 128, 8)
+                outerBar.endFill()
+                this.healthBar.addChild(outerBar)
+
+                this.healthBar.outer = outerBar
+            },
+            gameText: function () { //绘制结束文字
+                let style = new PIXI.TextStyle({
+                    fontFamily: 'Futura',
+                    fontSize: 64,
+                    fill: 'white'
+                })
+                this.message = new PIXI.Text('THE END!', style)
+                this.message.x = 120
+                this.message.y = this.app.stage.height / 2 - 32
+                this.gameoverScene.addChild(this.message)
+            },
+            gameLoop: function (delta) { //游戏循环
+                this.state(delta)
+            },
+            play: function (delta) { //游戏事件、逻辑、运动
+                let me = this
+                let explorerHit =false;   //是否碰撞到探索者
+
+                //use the explorer's velocity to make it move
+                me.explorer.x += me.explorer.vx;
+                me.explorer.y += me.explorer.vy;
+
+                //Contain the explorer inside the area of the dungeon
+                contain(me.explorer, {
+                    x: 28,
+                    y: 10,
+                    width: 488,
+                    height: 480
+                });
+
+                //怪物运动
+                this.blobs.forEach(function (blob) {
+                    blob.y += blob.vy
+
+                    let blobHitsWall = contain(blob, {
+                        x: 28,
+                        y: 10,
+                        width: 488,
+                        height: 480
+                    }) //返回怪物碰到可控制区域的边缘，就是怪物碰到那边的墙
+
+                    if (blobHitsWall === 'top' || blobHitsWall === "bottom") {
+                        blob.vy *= -1
+                    }
+
+                    if (hitTestRectangle(me.explorer, blob)) { //是否碰到探索者
+                        explorerHit = true
+                    }
+                })
+
+                if (explorerHit) {
+                    this.explorer.alpha = 0.5 //碰到怪物时的特效，变透明
+                    this.healthBar.outer.width -= 1 //血槽减少
+                    explorerHit = false
+                } else {
+                    me.explorer.alpha = 1
+                }
+
+                //碰到宝箱
+                if (hitTestRectangle(me.explorer, me.treasure)) {
+                    me.treasure.x = me.explorer.x + 8;
+                    me.treasure.y = me.explorer.y + 8;
+                }
+
+                //把宝箱带到出口
+                if (hitTestRectangle(me.treasure, me.door)) {
+                    me.state = me.end
+                    me.message.text = 'You Win!'
+                }
+
+                //血槽空了
+                if (me.healthBar.outer.width < 0) {
+                    me.state = me.end
+                    me.message.text = 'You Lost!'
+                }
+
+            },
+            end: function () { //游戏结束
+                this.gameScene.visible = false
+                this.gameoverScene.visible = true
+            },
+
+            progress: function (loader, resource) { //进度
+                console.log('progress' + loader.progress + '%')
+            },
+            sayHello: function () {
+                let type = 'WebGL'
+                if (!PIXI.utils.isWebGLSupported()) {
+                    type = 'canvas'
+                }
+                PIXI.utils.sayHello(type)
+            },
+        }
+
+        //取一个最大值和最小值之间的随机数，最后加上最小值，使随机数肯定大于最小值  这里用来给泡泡怪定位，使它随机出现在地牢中且不超出地牢
+        function randomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        //可控制区域，contain 接收两个参数。第一个是你想控制的精灵。第二个是包含了 x, y, width 和height属性的任何一个对象。
+        function contain(sprite, container) {
+            let collision = undefined; //碰撞
+
+            if (sprite.x < container.x) {
+                sprite.x = container.x
+                collision = 'left'
+            }
+
+            if (sprite.y < container.y) {
+                sprite.y = container.y
+                collision = 'top'
+            }
+
+            if (sprite.x + sprite.width > container.width) {
+                sprite.x = container.width - sprite.width
+                collision = 'right'
+            }
+
+            if (sprite.y + sprite.height > container.height) {
+                sprite.y = container.height - sprite.height
+                collision = 'bottom'
+            }
+
+            return collision
+        }
+
+        // 碰撞检测函数
+        function hitTestRectangle(r1, r2) {
+
+            //Define the variables we'll need to calculate
+            let hit, combinedHalfWidths, combinedHalfHeights, vx, vy;
+
+            //hit will determine whether there's a collision
+            hit = false;
+
+            //Find the center points of each sprite
+            r1.centerX = r1.x + r1.width / 2;
+            r1.centerY = r1.y + r1.height / 2;
+            r2.centerX = r2.x + r2.width / 2;
+            r2.centerY = r2.y + r2.height / 2;
+
+            //Find the half-widths and half-heights of each sprite
+            r1.halfWidth = r1.width / 2;
+            r1.halfHeight = r1.height / 2;
+            r2.halfWidth = r2.width / 2;
+            r2.halfHeight = r2.height / 2;
+
+            //Calculate the distance vector between the sprites
+            vx = r1.centerX - r2.centerX;
+            vy = r1.centerY - r2.centerY;
+
+            //Figure out the combined half-widths and half-heights
+            combinedHalfWidths = r1.halfWidth + r2.halfWidth;
+            combinedHalfHeights = r1.halfHeight + r2.halfHeight;
+
+            //Check for a collision on the x axis
+            if (Math.abs(vx) < combinedHalfWidths) {
+
+                //A collision might be occuring. Check for a collision on the y axis
+                if (Math.abs(vy) < combinedHalfHeights) {
+
+                    //There's definitely a collision happening
+                    hit = true;
+                } else {
+
+                    //There's no collision on the y axis
+                    hit = false;
+                }
+            } else {
+
+                //There's no collision on the x axis
+                hit = false;
+            }
+
+            //`hit` will be either `true` or `false`
+            return hit;
+        };
+
+        // keyboard的自定义函数来监听和捕捉键盘事件
+        function keyboard(keyCode) {
+            let key = {};
+            key.code = keyCode;
+            key.isDown = false;
+            key.isUp = true;
+            key.press = undefined;
+            key.release = undefined;
+            //The `downHandler`
+            key.downHandler = event => {
+                if (event.keyCode === key.code) {
+                    if (key.isUp && key.press) key.press();
+                    key.isDown = true;
+                    key.isUp = false;
+                }
+                event.preventDefault();
+            };
+
+            //The `upHandler`
+            key.upHandler = event => {
+                if (event.keyCode === key.code) {
+                    if (key.isDown && key.release) key.release();
+                    key.isDown = false;
+                    key.isUp = true;
+                }
+                event.preventDefault();
+            };
+
+            //Attach event listeners
+            window.addEventListener(
+                "keydown", key.downHandler.bind(key), false
+            );
+            window.addEventListener(
+                "keyup", key.upHandler.bind(key), false
+            );
+            return key;
+        }
+    </script>
+</body>
+
+</html>

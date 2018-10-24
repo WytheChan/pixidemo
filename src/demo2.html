@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>demo2</title>
+
+    <!-- css start -->
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/animate.min.css">
+    <!-- css end -->
+
+    <style lang="">
+       
+    </style>
+</head>
+<body>
+    
+
+    
+    
+    <script src="js/jquery-3.2.1.min.js"></script>
+    <script src="js/common.js"></script>
+    <script src="pixi/pixi.min.js"></script>
+    <script>
+      $(function(){
+         hello()
+
+         let Application = PIXI.Application,
+            loader = PIXI.loader,
+            resources = PIXI.loader.resources,
+            TextureCache = PIXI.utils.TextureCache
+            Sprite = PIXI.Sprite;
+
+         let app = new Application({
+            width:256,
+            height:256,
+            antialials:true,
+            transparent:false,
+            resolution:1
+         });
+
+         document.body.appendChild(app.view)
+
+        app.renderer.backgroundColor = 0x061639   //背景颜色
+
+        loader
+            .add([
+                'img/1.png',
+                'img/2.png',
+                'img/6.jpg'
+            ])
+            .on('progress',progress)
+            .load(setUp)
+
+        let sprite;
+        let state ;
+         function setUp(){
+              sprite = new Sprite(
+                  resources['img/1.png'].texture
+              )
+           
+           
+            sprite.position.set(50,50)  //定位
+
+            sprite.width = 100   //宽高
+            sprite.height = 150
+
+            sprite.vx = 0
+            sprite.vy = 0
+
+            state = play
+
+            app.ticker.add(delta => gameLoop(delta))
+
+            app.stage.addChild(sprite)
+        }
+        function progress(loader,resource){
+            console.log("progress: " + loader.progress + "%");
+        }
+        function gameLoop(delta){
+            state(delta)
+        }
+        function play(delta){
+            sprite.vx = 1
+            sprite.vy = 1
+
+            sprite.x += sprite.vx 
+            sprite.y += sprite.vy
+        }
+      })
+      //hello
+      function hello(){
+        let type = 'WebGL'
+          if(!PIXI.utils.isWebGLSupported()){
+              type = 'canvas'
+          }
+
+          PIXI.utils.sayHello(type)
+      }
+      //fullpage
+      function fullpage(app){
+        app.renderer.view.style.position = "absolute";
+        app.renderer.view.style.display = "block";
+        app.renderer.autoResize = true;
+        app.renderer.resize(window.innerWidth, window.innerHeight);
+      }
+    
+      
+    </script>
+</body>
+</html>
